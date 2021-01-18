@@ -170,12 +170,12 @@ datos_lista <- str_split(datos_lista, " ")
 
 pars <- list(supp = 0.0001 , target = "frequent items")
 
-ap <- apriori(datos_lista, parameter = pars)
+ap_4 <- apriori(datos_lista, parameter = pars)
 length(ap)
 
 ap_4 <- subset(ap, size(ap) == 1)
   
-sort(ap_4, by="support") %>% DATAFRAME
+sort(ap_4, by="support") %>%head(15) %>% DATAFRAME
   
 
 ### Otra forma 
@@ -184,6 +184,7 @@ sort(ap_4, by="support") %>% DATAFRAME
 
 recetas_nest <- tibble(
   receta_id = 1:length(datos_lista),
+  cocina = datos$region,
   articulos = datos_lista
 )
 
@@ -200,4 +201,6 @@ ingredientes_frec <- recetas_nest %>%
   mutate (prop = n/ num_recetas) %>% 
   arrange(desc(n))
 
+DT::datatable(ingredientes_frec %>% 
+                mutate_if(is_numeric,~ round(.x, 3)))
 
