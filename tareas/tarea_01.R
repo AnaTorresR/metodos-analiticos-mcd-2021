@@ -113,9 +113,7 @@ head(datos)
 # Número de canastas
 sprintf("Número de canastas: %s", nrow(datos))
 
-
 # Filtrar por tipo de cocina
-
 datos_filtrados <- datos %>% 
   group_by(region) %>% 
   summarise(n = n(), .groups = "drop") %>% 
@@ -168,35 +166,38 @@ datos_lista <- as(datos$articulos, 'list')
 datos_lista <- str_split(datos_lista, " ")
 
 
-### Función apriori
+#### Función apriori
 
-pars <- list(supp = 0.01 , target = "frequent items")
+pars <- list(supp = 0.0001 , target = "frequent items")
 
 ap <- apriori(datos_lista, parameter = pars)
 length(ap)
 
-listas <- function(x, y = 15){
-  ap_4 <- subset(ap, size(ap) == x)
+ap_4 <- subset(ap, size(ap) == 1)
   
-  sort(ap_4, by="support") %>%  head(y) %>% DATAFRAME
+sort(ap_4, by="support") %>% DATAFRAME
   
-}
 
-#Listas tamaño 1
-listas(1)
+### Otra forma 
 
-#Listas tamaño 2
-listas(2)
+# Canastas anidadas
 
-#Listas tamaño 3
-listas(3)
+recetas_nest <- tibble(
+  receta_id = 1:length(datos_lista),
+  articulos = datos_lista
+)
 
-#Listas tamaño 4
-listas(4)
+recetas_nest$articulos[[3]]
 
-#Listas tamaño 5
-listas(5)
+# Artículos mas frecuentes
+
+num_recetas <- nrow(datos)
+
+ingredientes_frec <- recetas_nest %>% 
+  unnest(cols = articulos) %>% 
+  group_by(articulos) %>% 
+  summarise( n = n(), .groups = "drop") %>% 
+  mutate (prop = n/ num_recetas) %>% 
+  arrange(desc(n))
 
 
-#Listas tamaño 6
-listas(6)
