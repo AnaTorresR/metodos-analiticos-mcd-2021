@@ -170,7 +170,7 @@ datos_lista <- str_split(datos_lista, " ")
 
 pars <- list(supp = 0.0001 , target = "frequent items")
 
-ap_4 <- apriori(datos_lista, parameter = pars)
+ap <- apriori(datos_lista, parameter = pars)
 length(ap)
 
 ap_4 <- subset(ap, size(ap) == 1)
