@@ -33,7 +33,7 @@ S = 1/(2*sqrt(length(recetas)))
 
 # Utilizando 0.2 como valor de confianza observamos lo siguiente: 
 
-pars <- list(supp = S, confidence = 0.2, target = 'rules',
+pars <- list(supp = 0.05, confidence = 0.2, target = 'rules',
              ext = TRUE, minlen =2)
 
 
@@ -41,11 +41,11 @@ reglas <- apriori(recetas, parameter = pars)
 
 df_1 <- sort(reglas, by='lift') %>% DATAFRAME
 
-df_2 <- df_1 %>% select(LHS, RHS,coverage,support , confidence, lift) %>% 
+df_2 <- reglas %>% select(LHS, RHS,coverage,support , confidence, lift) %>% 
   head(100) %>% 
   mutate_if(is.numeric, ~round(.x,2))
 
-DT::datatable(df_2)
+DT::datatable(df_1)
 
 ######
 
@@ -143,13 +143,14 @@ ggraph(graph_1, layout = 'fr') +
 
 # Gráfica con confianza > 0.6, soporte > 0.05
 
-reglas_1 <- subset(reglas_recetas, hyper_lift > 1 & support > 1 & confidence > 0.6)
+reglas_1 <- subset(reglas_recetas, hyper_lift > 1.1 & support > 1.6 & confidence > 2.6)
 
 reglas_tam_2 <- subset(reglas_1, size(reglas_1)==2)
 
 df_reglas <- reglas_tam_2 %>% DATAFRAME %>% rename(from=LHS, to=RHS) %>% data.frame
 
 df_reglas$weight <- log(df_reglas$lift)
+
 
 graph_1 <- as_tbl_graph(df_reglas) %>%
   mutate(centrality = centrality_degree(mode = "all")) 
