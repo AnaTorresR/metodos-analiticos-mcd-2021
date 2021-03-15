@@ -34,7 +34,10 @@ nrow(dbl)
 
 **Pregunta 1**: ¿si intentas una aproximación por fuerza bruta, cuántas comparaciones
 tendrías que hacer? Si cada tabla contuviera unos 2 millones de documentos, ¿qué tan 
-factible sería hacer todas las posibles comparaciones?
+factible sería hacer todas las posibles comparaciones? 
+
+$(2294 +2616)^2 = 4910^2 = 24,108,100$
+
 
 ## Tejas y hashing
 
@@ -47,14 +50,21 @@ acm_1 <- acm %>% select(id, title, authors) %>%
   mutate(texto = paste(title, authors, sep = "   ")) %>% 
   mutate(origen = "ACM") %>% 
   mutate(id = as.character(id))
+
 dbl_1 <- dbl %>% select(id, title, authors) %>% 
   mutate(texto = paste(title, authors, sep = "   ")) %>% 
   mutate(origen = "DBL")
+
 acm_dbl <- bind_rows(acm_1, dbl_1)
 ```
 
-**Pregunta 2**: ¿por qué definimos el texto incluyendo algún espacio en blanco entre título y autor?
+**Pregunta 2**: 
+¿por qué definimos el texto incluyendo algún espacio en blanco entre título y autor?
 ¿Qué otra estrategia se te ocurre para convertir en tejas?
+
+Para distinguir entre el título y el autor, así un espacio estaría incluído en
+alguna de las tejas. Otra estrategia podría ser utilizar diagonales ¿Supongo? 
+dependiendo del documento. 
 
 ```{r}
 # función de las notas
@@ -67,15 +77,16 @@ calcular_tejas <- function(x, k = 4, lowercase = FALSE){
 En este caso escogemos 30 hashes agrupados en 10 bandas,
 tejas de tamaño 4, y usamos sólo título y autor.
 
-
 ```{r}
 library(textreuse)
 set.seed(88345)
 # usar funciones de textreuse (que hace hash de las tejas directamente)
 funciones_minhash <- minhash_generator(30)
+
 nombres <- c(acm_1$id, dbl_1$id)
 texto <- c(acm_1$texto, dbl_1$texto)
 names(texto) <- nombres
+
 # el siguiente devuelve un objeto con los minhashes calculados
 corpus <- TextReuseCorpus(text = texto,
   hash_func = hash_string,
@@ -83,6 +94,7 @@ corpus <- TextReuseCorpus(text = texto,
   tokenizer = calcular_tejas, 
   k = 4, lowercase = TRUE,
   progress = FALSE, skip_short = FALSE)
+
 ```
 
 Por ejemplo, para el primer documento tenemos el contenido y los minhashes calculados:
@@ -97,6 +109,7 @@ con los minhashes y la banda de minhashes:
 
 ```{r}
 minhashes_docs <- minhashes(corpus)
+
 minhashes_tbl <- tibble(doc = names(minhashes_docs),
          minhashes = minhashes_docs) %>% 
   unnest(cols = minhashes) %>% 
@@ -122,6 +135,24 @@ cubetas_tbl
 hacer simplemente cubetas_tbl <- lsh(corpus, bands = 10). ¿Cómo crees
 que se calculan los identificadores de las cubetas en este caso? 
 
+* Se recorren las firmas de cada documento
+* Los documentos se asignan a cubetas según sus firmas (minhash)
+* Documentos que se encuentren en las mismas cubetas son candidatos a ser pares similares
+* Checamos la similitud exacta todos los pares candidatos dentro de cada cubeta que contenga más de un elemento, y filtramos si es necesario. 
+
+```{r}
+cubetas_tbl <- lsh(corpus, bands = 10)
+cubetas_tbl
+```
+
+```{r}
+cubetas_df <- cubetas_tbl %>% group_by(buckets) %>% 
+    summarise(docs = list(doc), .groups = "drop") %>% 
+    mutate(n_docs = map_int(docs, length)) %>% filter(n_docs > 1)
+
+#cubetas_df$docs 
+```
+
 ## Examinar pares candidatos
 
 Ahora extraemos pares similares. En *textreuse* se puede
@@ -135,12 +166,37 @@ nrow(candidatos)
 Calculamos también la similitud de jaccard exacta para cada par.
 
 ```{r}
+
 candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
 candidatos
 ```
 
-**Pregunta 4**: explica cómo se calcula la columna *score* en la tabla de candidatos,
-y da unos ejemplos.
+**Pregunta 4**: 
+explica cómo se calcula la columna *score* en la tabla de candidatos,
+y da unos ejemplos. 
+Es la similitud de Jaccard, se calcula como la intersección 
+entre las tejas de tamaño 4 de  los documentos entre la unión de las tejas de 
+tamaño 4 de ambos documentos. 
+
+Por ejemplo, el documento 1 y el documento 4418
+
+```{r}
+
+tejas_ejemplo_1 <- calcular_tejas(corpus[['174639']]$content)
+
+tejas_ejemplo_2 <-  calcular_tejas(corpus[['journals/tods/SalemGS94']]$content)
+
+length(intersect(tejas_ejemplo_1, tejas_ejemplo_2)) / length(union(tejas_ejemplo_1, tejas_ejemplo_2))
+```
+
+```{r}
+tejas_ejemplo_1 <- calcular_tejas(corpus[['176570']]$content)
+
+tejas_ejemplo_2 <-  calcular_tejas(corpus[['conf/sigmod/LamCKNH01']]$content)
+
+length(intersect(tejas_ejemplo_1, tejas_ejemplo_2)) / length(union(tejas_ejemplo_1, tejas_ejemplo_2))
+```
+
 
 ```{r}
 candidatos <- candidatos %>% arrange(desc(score))
@@ -154,25 +210,31 @@ corpus[["181566"]]$content
 corpus[["journals/sigmod/MedeirosP94"]]$content
 ```
 
+**Pregunta 5**: ¿Cuántas comparaciones tuviste qué hacer (cálculos de similitud)? Compara con el total de comparaciones que es posible hacer entre estas dos tablas.
 
-**Pregunta 5**: ¿Cuántas comparaciones tuviste qué hacer (cálculos de similitud)? Compara con el total
-de comparaciones que es posible hacer entre estas dos tablas.
-
+Se tuvieron que hacer un total de $9,960$ comparaciones, mientras que el total 
+de comparaciones posibles entre las dos tablas (mencionado anteriormente) eran
+$24,108,100$
 
 Ahora eliminamos candidatos que aparecieron en la misma tabla (misma referencia bibliográfica):
-
 
 ```{r}
 candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(a = id, origen_a = origen))
 candidatos <-  candidatos %>% left_join(acm_dbl %>% select(id, origen) %>% rename(b = id, origen_b = origen))
 candidatos_dif <- candidatos %>% filter(origen_a != origen_b)
+
+candidatos_dif
 ```
 
-
 **Pregunta 6**: 
-¿Cuántos pares candidatos obtuviste?
+¿Cuántos pares candidatos obtuviste? $5,140$
 Examina algunos elementos con similitud uno o cercana a uno. ¿Se refieren al
 mismo artículo en las dos fuentes? 
+
+```{r}
+corpus[["181565"]]$content; corpus[["journals/sigmod/Loeffen94"]]$content
+
+```
 
 **Pregunta 7**: 
 ¿Cuántos pares candidatos obtienes si usas 30 hashes con 5 o 30 bandas, en
@@ -180,13 +242,64 @@ lugar de 10 bandas? Explica cuál es la desventaja de usar demasiadas
 bandas, y cuál es la desventaja de usar muy pocas bandas.
 
 
+Con 5 bandas se tienen $2,815$ pares de candidatos 
+
+```{r}
+cubetas_tbl <- lsh(corpus, bands = 5)
+cubetas_tbl
+```
+
+```{r}
+candidatos <- lsh_candidates(cubetas_tbl %>% select(doc, buckets))
+
+candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
+
+```
+
+```{r}
+cubetas_tbl <- lsh(corpus, bands = 30)
+cubetas_tbl
+```
+
+```{r}
+candidatos <- lsh_candidates(cubetas_tbl %>% select(doc, buckets))
+
+candidatos <- lsh_compare(candidatos, corpus, jaccard_similarity)
+
+candidatos %>% nrow()
+```
+
+La desventaja de usar demasiadas
+bandas es que se tienen demasiados pares de candidtos a comparar, en este caso 
+se tenían $2,812,987$ de comparaciones, y  la desventaja de usar muy pocas
+bandas es que se tienen pocas $2,815$ comparaciones de documentos cuyas 
+comparaciones quitando los candidatos repetidos eran $5,140$, considero que se
+estaría perdiendo información. O sea solo se estarían comparando el $54\%$ de 
+candidatos. 
+
+Si se tienen 30 firmas por documento, cada banda (30) tendrá un renglón.
+Documentos con renglones similares serán asignados al mismo bucket.
+
 ## Examinar resultados
 
 **Pregunta 8**: Ahora considera los elementos 
 con similitud más baja que capturaste. Examina varios casos y concluye
 si hay pares que no se refieren al mismo artículo, y por qué.
 
+```{r}
+candidatos %>% arrange(score)
+```
+```{r}
+corpus[['671010']]$content ;
+corpus[['conf/vldb/SeshadriLR97']]$content
+```
 
+Documentos similares está dando un similitud baja 
+
+```{r}
+corpus[['conf/sigmod/AcharyaGPR99']]$content ; 
+corpus[['conf/sigmod/AcharyaGPR99a']]$content
+```
 
 **Pregunta 9**: propón un punto de corte de similitud para la tabla de arriba, según tus
 observaciones de la pregunta anterior.
@@ -194,17 +307,17 @@ observaciones de la pregunta anterior.
 ```{r}
 # código filtrando con score > tu_numero, y examinando los elementos
 # de similitud más baja
-candidatos_filt <- filter(candidatos_dif, score > )
+candidatos_filt <- filter(candidatos, score > 0.68 )
 tail(candidatos_filt)
 ```
 
 **Pregunta 10**: ¿cuántos pares candidatos obtuviste al final?
 
+$2,246$
 
 ## Evaluación de resultados
 
- Evalúa tus resultados con las respuestas
-correctas, que están en la carpeta de los datos.
+Evalúa tus resultados con las respuestas correctas, que están en la carpeta de los datos.
 
 
 ```{r}
@@ -233,7 +346,7 @@ puedas imaginar, ¿qué tan buenos son estos resultados? ¿Qué consideras
 mejor en este punto, tener precisión o recall alto? 
 
 ```{r}
-precision <- 
+precision <- precision(mapping)
 precision
 recall <- 
 recall

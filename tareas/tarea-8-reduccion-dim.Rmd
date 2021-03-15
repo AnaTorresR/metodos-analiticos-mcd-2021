@@ -8,22 +8,35 @@ output: html_notebook
 y un vector $v$ que representa valores asociados para las variables ($p$).
 
 ```{r}
+# Scores de los individuos por ejemplo, que tanto les gusta la ciencia ficción
 u <- c(0,1,2,4,5)
+
+# Pesos de las variables por ejemplo, contenido de ciencia dicción 
 v <- c(0.5,1,5)
+
+# Vectores normalizados
 ```
 
 Si $sigma = 10$, calcula la matriz de datos $n\times p$ generada por la matriz
 de rango 1  $\sigma u v^t$.
 
 ```{r}
+# La constante σ nos permite pensar que los vectores u y v están normalizados.
 # completa el código
-X_1 <- 
+X_1 <- 10*tcrossprod(u, v)
 X_1
 ```
+
 ¿Cómo describirías esta matriz de datos en términos de las columnas? ¿En términos 
 de los renglones?
 
+Las columnas hacen referencia a las películas y los renglones a las personas.
+
+La afinidad de la persona i (rengón) por la película j (columna)
+
+
 2. Si $X_1$ es la matriz que obtuviste en el inciso anterior, agrega ruido:
+
 ```{r}
 X <- X_1 + matrix(rnorm(15*3, 0, 0.1), 5, 3)
 X
@@ -34,23 +47,89 @@ optimizando directamente si quieres):
 
 ```{r}
 # completa el código
-svd_1 <- 
+svd_1 <- svd(X_1)
 ```
 
-- Identifica las columnas de $U$ y $V$ en la salida de *svd* que corresponden a los vectores que usamos para construir $X_1$,
+- Identifica las columnas de $U$ y $V$ en la salida de *svd* que corresponden a 
+los vectores que usamos para construir $X_1$,
+
+d es vector de valores singulares
+
+u vectores singulares izquierdos son los scores de los rubros en cada dimensión
+
+v vectores singulares derechos, (pesos de las variables) en nuestras tres nuevas dimensiones, que son las columnas de
+
+
+Las columnas de U y V son vectores ortogonales unitarios. 
+
+Si multiplicamos el primer valor singuar por la primera columna de U por la primera
+columna de $V^T$ ($UV^T$) obtenemos $X_1$ que es la matriz de datos generada por 
+la matriz de rango 1
+
+```{r}
+library(dplyr)
+A <- (svd_1$d[1]*tcrossprod(svd_1$u[,1], svd_1$v[,1])) %>% round(1)
+A
+```
+
+calcula la matriz de datos $n\times p$ generada por la matriz
+de rango 1  $\sigma u v^t$.
+
+
 
 - ¿Cuál es la relación entre los $u$ y $v$ que usamos al principio y los que obtuvimos
 de la función *svd*?
 
-4. Argumenta con la salida de *svd* que las aproximaciones de rango 2 y rango 3 son
-no aportan mucho sobre la de rango 1. 
+$U = \sigma \times u$ y $V = \sigma \times v$
 
-- Verifica comparando matrices 
-que las aproximaciones de rango 1 y rango 2
+
+4. Argumenta con la salida de *svd* que las aproximaciones de rango 2 y rango 3 
+no aportan mucho sobre la de rango 1.
+
+El segundo y tercer valor singular son prácticamente cero, por lo tanto la
+primera dimensión es la que aporta toda la información.
+
+
+```{r}
+(svd_1$d[2]*tcrossprod(svd_1$v[,2], svd_1$u[,2])) %>% round(1)
+(svd_1$d[3]*tcrossprod(svd_1$v[,3], svd_1$u[,3])) %>% round(1)
+
+```
+
+
+- Verifica comparando matrices que las aproximaciones de rango 1 y rango 2
 son muy similares. 
+
+Si multiplicamos podemos ver que la contribución de esta matriz de rango 1 de la 
+segunda dimensión es nula. Al igual que la matriz de rango 1 de la tercera 
+dimensión.
+
 
 - Verifica calculando la distancia Frobenius entre la aproximación de rango 1 y 2 y
 la matriz original, usando los valores singulares ($\sigma$).
+
+
+```{r}
+sum(X_1^2) - sum(svd_1$d[1]^2) 
+sum(X_1^2) - sum(svd_1$d[2]^2) 
+sum(X_1^2) - sum(svd_1$d[3]^2) 
+
+```
+
+```{r}
+X_2 <- svd_1$d[1]*tcrossprod(svd_1$u[,1], svd_1$v[,1]) + svd_1$d[2]*tcrossprod(svd_1$u[,2], svd_1$v[,2])
+sum((X_1 - X_2)^2)
+```
+
+```{r}
+X_2 <- svd_1$d[1]*tcrossprod(svd_1$u[,1], svd_1$v[,1]) + svd_1$d[3]*tcrossprod(svd_1$u[,3], svd_1$v[,3])
+sum((X_1 - X_2)^2)
+```
+
+```{r}
+X_2 <- svd_1$d[3]*tcrossprod(svd_1$u[,3], svd_1$v[,3]) + svd_1$d[2]*tcrossprod(svd_1$u[,2], svd_1$v[,2])
+sum((X_1 - X_2)^2)
+```
 
 
 5. Considera los siguientes datos de gasto por decil en distintos tipos de alimentos
@@ -66,11 +145,27 @@ deciles
 (Nota: puedes cancelar signos de $u$ y $v$ para hacer más fácil la interpretación) 
 
 ```{r}
-#
-#
-#
-#
-#
+(svd_2$d[1]*tcrossprod(svd_2$u[,1], svd_2$v[,1])) %>% round(0)
+```
+
+Cancelando los signos:
+
+En $u$: la primera dimensión tiene valores altos en el segundo rubro  'Carnes'
+En $v$: la primera dimensión tiene valores altos en el décimo decil
+
+En los años 2008/2010 aproximadamente 30 millones de hogares su mayor gasto se
+enfocaba en carnes.
+```{r}
+svd_2 <- svd(deciles[,-1])
+
+v <- svd_2$v
+rownames(v) <- colnames(deciles[,-1])
+v
+
+
+u <- (svd_2$u)
+rownames(u) <- deciles$X1
+u
 ```
 
 7. Ahora considera la segunda dimensión
@@ -78,19 +173,30 @@ deciles
 - Considera primero el vector $v_2$ (¿para qué deciles
 tiene valores positivos? ¿para qué deciles tiene valores negativos?
 
-```{r}
-#
+
+El vector $v_2$ tiene valores positivos para los primeros 7 deciles y valores
+negativos para los deciles 8, 9 y 10.
+```{r} 
+v[,2]
 ```
 
 
 - Ahora considera el vector $u_2$. ¿Para qué rubros tiene valores grandes/chicos?
 ¿Qué explica esta dimensión?
 
+El vector $u_2$ tiene valores positivos para CEREALES, HUEVO, TUBERCULOS, 
+CAFÉ TÉ Y CHOCOLATE, ACEITES Y GRASAS, VERDURAS LEGUMBRES LEGUMINOSAS, AZÚCAR Y MIELES,
+ESPECIAS Y ADEREZOS
+
+Y VALORES NEGATIVOS EN PESCADOS Y MARISCOS, FRUTAS, OTROS ALIMENTOS, CARNES Y LACTEOS.
+
+DURANTE LOS AÑOS 2008/2010 APROXIMADAMENTE 21 MILLONES DE HOGARES NO DEDICARON
+SU GASTARO EN ALIMETNOS PROTÉICOS.
+
 ```{r}
-#
-#
-#
+u[,2]
 ```
+
 
 - Puedes también calcular la siguiente matriz de rango 1, para que te ayude 
 a interpretar: es la componente $\sigma_2u_2v_2^t$, que se suma a $\sigma_1 u_1 v_1^t$
@@ -99,7 +205,7 @@ más fácilmente:
 
 ```{r}
 # modifica según el código que escribiste arriba:
-A <- round(svd_deciles$d[2]*tcrossprod(svd_deciles$u[,2], svd_deciles$v[,2])/1e3)
+A <- round(svd_2$d[2]*tcrossprod(svd_2$u[,2], svd_2$v[,2])/1e3)
 rownames(A) <- deciles$X1
 A
 ```
